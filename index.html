@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#00060a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="JARVIS — Advanced Neural Core HUD">
+  <title>JARVIS</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+  <style>
+    :root {
+      --bg:       #00060a;
+      --surface:  rgba(0, 212, 255, 0.04);
+      --border:   rgba(0, 212, 255, 0.12);
+      --pri:      #00d4ff;
+      --pri-dim:  #007a99;
+      --acc:      #ff6b00;
+      --acc2:     #ffcc00;
+      --green:    #00ff88;
+      --muted:    #ff3366;
+      --text:     #d8f8ff;
+      --text-dim: #5a8a9a;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      height: 100dvh;
+      position: relative;
+    }
+    header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      padding-top: max(10px, env(safe-area-inset-top));
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,6,10,0.94);
+      z-index: 20;
+    }
+    .logo {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: var(--text);
+    }
+    .logo span { color: var(--pri); }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 2px;
+      background: rgba(0,212,255,0.06);
+      border: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      transition: all 0.25s;
+    }
+    .status-pill.on {
+      border-color: rgba(0,255,136,0.35);
+      color: var(--green);
+      background: rgba(0,255,136,0.08);
+    }
+    .status-pill.thinking {
+      border-color: rgba(255,204,0,0.4);
+      color: var(--acc2);
+      background: rgba(255,204,0,0.08);
+    }
+    .status-pill.speaking {
+      border-color: rgba(255,107,0,0.45);
+      color: var(--acc);
+      background: rgba(255,107,0,0.1);
+    }
+    .status-pill.muted {
+      border-color: rgba(255,51,102,0.4);
+      color: var(--muted);
+    }
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+    .status-pill.on .dot { background: var(--green); animation: blink 2s infinite; }
+    .status-pill.thinking .dot { background: var(--acc2); animation: blink 0.7s infinite; }
+    .status-pill.speaking .dot { background: var(--acc); animation: blink 0.6s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .spacer { flex: 1; }
+    #settings-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      width: 30px; height: 30px;
+      border-radius: 3px;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #core-wrap {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+    }
+    #core-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #status-line {
+      position: absolute;
+      left: 0; right: 0;
+      bottom: 46%;
+      text-align: center;
+      font-size: 11px;
+      letter-spacing: 2px;
+      font-weight: 700;
+      color: var(--pri);
+      pointer-events: none;
+      z-index: 5;
+      text-shadow: 0 0 12px rgba(0,212,255,0.5);
+    }
+    #chat-panel {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      max-height: 40%;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(to top, rgba(0,6,10,0.98) 65%, transparent);
+      pointer-events: none;
+      z-index: 10;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 14px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      pointer-events: auto;
+      -webkit-overflow-scrolling: touch;
+      mask-image: linear-gradient(to bottom, transparent 0%, black 16%);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 16%);
+    }
+    .msg {
+      max-width: 90%;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12.5px;
+      line-height: 1.4;
+      word-break: break-word;
+      animation: msgIn 0.22s ease;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: rgba(0,212,255,0.12);
+      border: 1px solid rgba(0,212,255,0.25);
+      color: #b8f0ff;
+      border-bottom-right-radius: 1px;
+    }
+    .msg.jarvis {
+      align-self: flex-start;
+      background: rgba(0,212,255,0.05);
+      border: 1px solid rgba(0,212,255,0.12);
+      color: var(--text);
+      border-bottom-left-radius: 1px;
+    }
+    .msg.sys {
+      align-self: center;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 10.5px;
+      letter-spacing: 0.5px;
+      padding: 3px 8px;
+      font-family: 'Courier New', monospace;
+    }
+    #input-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px 12px;
+      pointer-events: auto;
+    }
+    #text-input {
+      flex: 1;
+      background: rgba(0,212,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    #text-input:focus { border-color: rgba(0,212,255,0.45); }
+    #text-input::placeholder { color: var(--text-dim); }
+    .icon-btn {
+      width: 42px; height: 42px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      background: rgba(0,212,255,0.05);
+      color: var(--pri);
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .icon-btn:active { transform: scale(0.94); }
+    .icon-btn.mic.active {
+      background: rgba(255,51,102,0.15);
+      border-color: rgba(255,51,102,0.5);
+      color: var(--muted);
+      animation: micPulse 1s ease-in-out infinite;
+    }
+    @keyframes micPulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(255,51,102,0.25); }
+      50%     { box-shadow: 0 0 0 8px rgba(255,51,102,0); }
+    }
+    .icon-btn.send {
+      background: rgba(0,212,255,0.12);
+      border-color: rgba(0,212,255,0.35);
+      color: var(--pri);
+    }
+    #settings-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 50;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    #settings-panel.open { display: flex; }
+    .settings-card {
+      width: 100%;
+      max-width: 420px;
+      background: #000b12;
+      border: 1px solid var(--border);
+      border-radius: 12px 12px 0 0;
+      padding: 22px 18px 28px;
+      padding-bottom: max(28px, env(safe-area-inset-bottom));
+    }
+    .settings-card h3 {
+      font-size: 13px;
+      letter-spacing: 2px;
+      margin-bottom: 14px;
+      color: var(--pri);
+    }
+    .settings-card label {
+      display: block;
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+      letter-spacing: 0.5px;
+    }
+    .settings-card input {
+      width: 100%;
+      background: rgba(0,212,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 13px;
+      margin-bottom: 14px;
+      outline: none;
+      font-family: inherit;
+    }
+    .settings-card input:focus { border-color: var(--pri); }
+    .settings-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .settings-actions button {
+      flex: 1;
+      padding: 11px;
+      border-radius: 3px;
+      border: none;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: var(--pri);
+      color: #00060a;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border) !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="logo">J<span>A</span>RVIS</div>
+      <div class="status-pill on" id="status-pill">
+        <div class="dot"></div>
+        <span id="status-text">ONLINE</span>
+      </div>
+      <div class="spacer"></div>
+      <button id="settings-btn" title="Configurações">⚙</button>
+    </header>
+
+    <div id="core-wrap">
+      <canvas id="core-canvas"></canvas>
+      <div id="status-line">●  LISTENING</div>
+
+      <div id="chat-panel">
+        <div id="messages">
+          <div class="msg sys">SYS: Neural Core online</div>
+          <div class="msg jarvis">Sistema operacional. Todos os módulos estão ativos. Como posso ajudar?</div>
+        </div>
+        <div id="input-bar">
+          <button class="icon-btn mic" id="mic-btn" title="Voz">🎤</button>
+          <input id="text-input" type="text" placeholder="Comando ou pergunta..." autocomplete="off">
+          <button class="icon-btn send" id="send-btn" title="Enviar">➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-panel">
+    <div class="settings-card">
+      <h3>CONFIGURAÇÕES</h3>
+
+      <label>API KEY (GEMINI)</label>
+      <input id="api-key" type="password" placeholder="Cole sua Gemini API Key aqui" autocomplete="off">
+
+      <label style="margin-top:10px">URL DO BACKEND JARVIS (OPCIONAL)</label>
+      <input id="backend-url" type="url" placeholder="https://seu-servidor.com:8000">
+
+      <p style="font-size:10.5px;color:var(--text-dim);margin-bottom:14px;line-height:1.5;font-family:-apple-system,sans-serif">
+        A API Key fica salva só neste aparelho (localStorage).<br>
+        Backend: deixe em branco para modo demonstração local.
+      </p>
+      <div class="settings-actions">
+        <button class="btn-secondary" id="settings-close">FECHAR</button>
+        <button class="btn-primary" id="settings-save">SALVAR</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  let backendUrl = localStorage.getItem('jarvis_backend') || '';
+  let apiKey = localStorage.getItem('jarvis_api_key') || '';
+  const $ = (s) => document.querySelector(s);
+
+  $('#settings-btn').onclick = () => {
+    $('#backend-url').value = backendUrl;
+    $('#api-key').value = apiKey;
+    $('#settings-panel').classList.add('open');
+  };
+  $('#settings-close').onclick = () => $('#settings-panel').classList.remove('open');
+  $('#settings-save').onclick = () => {
+    backendUrl = $('#backend-url').value.trim().replace(/\/$/, '');
+    apiKey = $('#api-key').value.trim();
+    localStorage.setItem('jarvis_backend', backendUrl);
+    localStorage.setItem('jarvis_api_key', apiKey);
+    $('#settings-panel').classList.remove('open');
+    let msg = [];
+    if (apiKey) msg.push('API Key salva');
+    if (backendUrl) msg.push('Backend: ' + backendUrl);
+    if (!msg.length) msg.push('Modo local (demo)');
+    addMessage('sys', msg.join(' • '));
+  };
+  $('#settings-panel').addEventListener('click', (e) => {
+    if (e.target === $('#settings-panel')) $('#settings-panel').classList.remove('open');
+  });
+
+  function addMessage(type, text) {
+    const box = $('#messages');
+    const el = document.createElement('div');
+    el.className = `msg ${type}`;
+    el.textContent = text;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+    while (box.children.length > 50) box.removeChild(box.firstChild);
+  }
+
+  function setStatus(state) {
+    const pill = $('#status-pill');
+    const txt  = $('#status-text');
+    const line = $('#status-line');
+    pill.classList.remove('on', 'thinking', 'speaking', 'muted');
+    coreState.thinking = false;
+    coreState.speaking = false;
+
+    if (state === 'online' || state === 'LISTENING') {
+      pill.classList.add('on');
+      txt.textContent = 'ONLINE';
+      line.textContent = '●  LISTENING';
+      line.style.color = 'var(--green)';
+    } else if (state === 'thinking' || state === 'THINKING' || state === 'PROCESSING') {
+      pill.classList.add('thinking');
+      txt.textContent = 'THINKING';
+      line.textContent = '◈  THINKING';
+      line.style.color = 'var(--acc2)';
+      coreState.thinking = true;
+    } else if (state === 'speaking' || state === 'SPEAKING') {
+      pill.classList.add('speaking');
+      txt.textContent = 'SPEAKING';
+      line.textContent = '●  SPEAKING';
+      line.style.color = 'var(--acc)';
+      coreState.speaking = true;
+      coreState.amp = 0.8;
+    } else if (state === 'muted') {
+      pill.classList.add('muted');
+      txt.textContent = 'MUTED';
+      line.textContent = '⊘  MUTED';
+      line.style.color = 'var(--muted)';
+    } else {
+      txt.textContent = 'OFFLINE';
+      line.textContent = '○  OFFLINE';
+      line.style.color = 'var(--text-dim)';
+    }
+  }
+
+  const demoReplies = [
+    "Sistema operacional. Todos os módulos estão online.",
+    "Entendido. Processando sua solicitação.",
+    "Análise concluída. Posso ajudar com mais alguma coisa?",
+    "Núcleo neural estável. Pronto para novos comandos.",
+    "Claro. Estou à disposição.",
+    "Comando recebido. Executando protocolo.",
+    "Interessante. Deixe-me verificar isso para você.",
+    "Tudo sob controle. Aguardando próximas instruções.",
+    "Confirmado. Operação concluída com sucesso.",
+    "Estou ouvindo. Pode continuar."
+  ];
+
+  async function sendCommand(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    addMessage('user', text);
+    $('#text-input').value = '';
+    setStatus('thinking');
+
+    if (backendUrl) {
+      try {
+        const res = await fetch(backendUrl + '/api/command', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        if (!res.ok) throw new Error('fail');
+        setTimeout(() => setStatus('online'), 1200);
+        return;
+      } catch (e) {
+        addMessage('sys', 'Falha ao conectar com o backend');
+        setStatus('online');
+        return;
+      }
+    }
+
+    setTimeout(() => {
+      setStatus('speaking');
+      const reply = demoReplies[Math.floor(Math.random() * demoReplies.length)];
+      addMessage('jarvis', reply);
+      setTimeout(() => {
+        coreState.amp = 0;
+        setStatus('online');
+      }, 1600 + reply.length * 28);
+    }, 700 + Math.random() * 500);
+  }
+
+  $('#send-btn').onclick = () => sendCommand($('#text-input').value);
+  $('#text-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendCommand($('#text-input').value);
+  });
+
+  let micActive = false;
+  $('#mic-btn').onclick = () => {
+    micActive = !micActive;
+    if (micActive) {
+      $('#mic-btn').classList.add('active');
+      $('#mic-btn').textContent = '⏹';
+      coreState.amp = 0.45;
+      setStatus('LISTENING');
+      addMessage('sys', 'Microfone ativo');
+    } else {
+      $('#mic-btn').classList.remove('active');
+      $('#mic-btn').textContent = '🎤';
+      coreState.amp = 0;
+      setStatus('online');
+      addMessage('sys', 'Microfone desativado');
+    }
+  };
+
+  const coreState = {
+    phase: 0,
+    amp: 0,
+    speaking: false,
+    thinking: false,
+    name: 'JARVIS'
+  };
+
+  let canvas, ctx, dpr = 1;
+
+  function initCore() {
+    canvas = $('#core-canvas');
+    ctx = canvas.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+    requestAnimationFrame(loop);
+  }
+
+  function resize() {
+    const wrap = $('#core-wrap');
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = wrap.clientWidth  * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+    canvas.style.width  = wrap.clientWidth  + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function loop(now) {
+    const dt = Math.min(0.05, (now - (loop._last || now)) / 1000);
+    loop._last = now;
+    coreState.phase += dt;
+    if (!coreState.speaking && !micActive) coreState.amp *= 0.93;
+    drawCore();
+    requestAnimationFrame(loop);
+  }
+
+  function blend(r, g, b, a, bg = [0, 6, 10]) {
+    const k = Math.max(0, Math.min(1, a));
+    return `rgb(${Math.round(bg[0]+(r-bg[0])*k)},${Math.round(bg[1]+(g-bg[1])*k)},${Math.round(bg[2]+(b-bg[2])*k)})`;
+  }
+
+  function drawCore() {
+    const W = canvas.width / dpr;
+    const H = canvas.height / dpr;
+    const cx = W / 2;
+    const cy = H * 0.38;
+    const r  = Math.min(W, H) * 0.36;
+
+    ctx.clearRect(0, 0, W, H);
+
+    const t = coreState.phase;
+    const amp = coreState.amp;
+    const live = coreState.speaking || amp > 0.04 || micActive;
+    const thinking = coreState.thinking;
+    const baseRate = 1.15 + (thinking ? 2.5 : 0) + (coreState.speaking ? 1.7 : 0);
+    const pulse = 0.55 + 0.45 * Math.sin(t * 1.7);
+    const energy = live ? 0.35 + 0.65 * amp : 0.22 + 0.12 * pulse;
+
+    const main = [0, 212, 255];
+    const acc  = [255, 107, 0];
+
+    const lift = 1.0 + 0.7 * amp + (coreState.speaking ? 0.25 : 0);
+    for (const [gr, a0] of [[r*0.95, 0.16], [r*0.58, 0.26], [r*0.28, 0.40]]) {
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, gr);
+      g.addColorStop(0,    blend(...main, Math.min(0.95, a0*lift*1.15)));
+      g.addColorStop(0.4,  blend(...main, Math.min(0.95, a0*lift*0.55)));
+      g.addColorStop(0.75, blend(...main, Math.min(0.95, a0*lift*0.16)));
+      g.addColorStop(1,    'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cx, cy, gr, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    for (const [rr, a] of [[1.0, 0.36], [0.915, 0.16]]) {
+      ctx.strokeStyle = blend(...main, a);
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r*rr, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    for (let i = 0; i < 96; i++) {
+      const a = (i * 3.75) * Math.PI / 180;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const major = i % 4 === 0;
+      ctx.strokeStyle = blend(...main, major ? 0.46 : 0.14);
+      ctx.lineWidth = major ? 1.35 : 1;
+      const r0 = major ? 0.875 : 0.945;
+      ctx.beginPath();
+      ctx.moveTo(cx + ca*r*r0, cy + sa*r*r0);
+      ctx.lineTo(cx + ca*r*0.99, cy + sa*r*0.99);
+      ctx.stroke();
+    }
+
+    const rings = [
+      [0.970, 95,  3,  1, acc,  0.70, 2.0, 11],
+      [0.890, 70,  4, -1, main, 0.40, 1.35, 8.5],
+      [0.810, 130, 2,  1, acc,  0.52, 1.6, 14],
+      [0.720, 55,  5, -1, main, 0.28, 1.15, 7],
+      [0.640, 110, 3,  1, acc,  0.36, 1.4, 16.5],
+      [0.555, 48,  6, -1, main, 0.24, 1.05, 9.5],
+    ];
+    for (const [rr, span, count, dirn, col, a, wid, spd] of rings) {
+      const rad = r * rr;
+      ctx.strokeStyle = blend(...col, a * (0.85 + 0.15*pulse));
+      ctx.lineWidth = wid;
+      const base = (t * baseRate * spd * dirn) % 360;
+      for (let s = 0; s < count; s++) {
+        const start = (base + s * (360/count)) * Math.PI / 180;
+        const end = start + span * Math.PI / 180;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rad, start, end);
+        ctx.stroke();
+      }
+    }
+
+    const nNodes = 18;
+    const nodeR = r * 0.48;
+    const nodes = [];
+    for (let i = 0; i < nNodes; i++) {
+      const ang = t * baseRate * 0.55 + i * (Math.PI*2 / nNodes);
+      const radOff = nodeR * (1 + 0.035 * Math.sin(t*2.1 + i*0.9));
+      nodes.push([cx + Math.cos(ang)*radOff, cy + Math.sin(ang)*radOff, i]);
+    }
+    for (let i = 0; i < nNodes; i++) {
+      for (const off of [1, 2, 4]) {
+        const j = (i + off) % nNodes;
+        const act = 0.12 + 0.28*energy + 0.18*Math.sin(t*3.4 + i*0.7 + off);
+        ctx.strokeStyle = blend(...(live ? acc : main), Math.max(0.06, Math.min(0.55, act)));
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(nodes[i][0], nodes[i][1]);
+        ctx.lineTo(nodes[j][0], nodes[j][1]);
+        ctx.stroke();
+      }
+    }
+    for (const [nx, ny, idx] of nodes) {
+      const glow = 0.35 + 0.45*energy + 0.2*Math.sin(t*4 + idx*1.1);
+      const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, r*0.055);
+      g.addColorStop(0,   blend(...acc, Math.min(0.9, glow*0.85)));
+      g.addColorStop(0.55,blend(...main, Math.min(0.6, glow*0.35)));
+      g.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(nx, ny, r*0.055, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = blend(...(live?acc:main), Math.min(0.95, 0.55+glow*0.4));
+      ctx.beginPath();
+      ctx.arc(nx, ny, r*0.012, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    for (let s = 0; s < 3; s++) {
+      const phase0 = t * baseRate * (1.8 + s*0.7) + s*2.1;
+      const streamR = r * (0.38 + s*0.09);
+      const pts = [];
+      const N = 36;
+      for (let i = 0; i < N; i++) {
+        const frac = i / N;
+        const ang = phase0 + frac * 2.8 * Math.PI * (s%2===0 ? 1 : -1);
+        const rr = streamR * (0.75 + 0.25*Math.sin(frac*6 + t*2.5));
+        pts.push([cx + Math.cos(ang)*rr, cy + Math.sin(ang)*rr]);
+      }
+      for (let i = 0; i < pts.length-1; i++) {
+        const a = 0.08 + 0.35*energy * (1 - Math.abs(i/N - 0.5)*1.4);
+        if (a > 0.05) {
+          ctx.strokeStyle = blend(...acc, a);
+          ctx.lineWidth = 1.25;
+          ctx.beginPath();
+          ctx.moveTo(pts[i][0], pts[i][1]);
+          ctx.lineTo(pts[i+1][0], pts[i+1][1]);
+          ctx.stroke();
+        }
+      }
+    }
+
+    for (const [spd, a0, wid] of [[0.9, 0.22, 1.4], [-1.35, 0.14, 1.1]]) {
+      const ang = (t * baseRate * spd * 60) % 360;
+      const rad = r * 0.98;
+      ctx.strokeStyle = blend(...(spd>0?acc:main), a0 + 0.15*energy);
+      ctx.lineWidth = wid;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, ang*Math.PI/180, (ang+28)*Math.PI/180);
+      ctx.stroke();
+      ctx.strokeStyle = blend(...main, a0*0.45);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, (ang-18)*Math.PI/180, (ang+4)*Math.PI/180);
+      ctx.stroke();
+    }
+
+    const n = 72;
+    const ring = r * 0.405;
+    ctx.strokeStyle = blend(...(live?acc:main), 0.22 + 0.55*amp);
+    ctx.lineWidth = 1.45;
+    for (let i = 0; i < n; i++) {
+      const a = i * (Math.PI*2 / n);
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const wob = 0.5 + 0.5*Math.sin(t*2.8 + i*0.51);
+      const idle = 0.014 + 0.016*Math.sin(t*1.4 + i*0.85);
+      const h = r * (idle + (live ? amp*0.24*wob : 0));
+      ctx.beginPath();
+      ctx.moveTo(cx + ca*ring, cy + sa*ring);
+      ctx.lineTo(cx + ca*(ring+h), cy + sa*(ring+h));
+      ctx.stroke();
+    }
+
+    for (const [rr, a, w] of [[0.34, 0.35+0.4*energy, 1.55], [0.275, 0.22+0.25*energy, 1.15]]) {
+      ctx.strokeStyle = blend(...acc, a);
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r*rr, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    const coreR = r * (0.105 + 0.035*energy + 0.02*pulse);
+    const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR*1.8);
+    cg.addColorStop(0,    blend(...acc, Math.min(0.95, 0.75+0.25*energy)));
+    cg.addColorStop(0.35, blend(...main, Math.min(0.85, 0.45+0.3*energy)));
+    cg.addColorStop(0.7,  blend(...main, 0.12+0.15*energy));
+    cg.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR*1.8, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = blend(...(live?acc:main), Math.min(0.98, 0.7+0.3*energy));
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR*0.45, 0, Math.PI*2);
+    ctx.fill();
+
+    for (const [rr, span, dirn, spd] of [[0.22, 80, 1, 22], [0.18, 55, -1, 28]]) {
+      const rad = r * rr;
+      ctx.strokeStyle = blend(...acc, 0.55 + 0.3*energy);
+      ctx.lineWidth = 1.25;
+      const base = (t * baseRate * spd * dirn) % 360;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, base*Math.PI/180, (base+span)*Math.PI/180);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = blend(216, 248, 255, 0.65 + 0.35*Math.min(1, amp*2));
+    ctx.font = `bold ${Math.max(11, r*0.09)}px "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(coreState.name, cx, cy);
+  }
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+  initCore();
+  setStatus('online');
+  </script>
+</body>
+</html>
