@@ -19,6 +19,8 @@ class SettingsActivity : Activity() {
 
     private lateinit var key: EditText
     private lateinit var models: EditText
+    private lateinit var pico: EditText
+    private lateinit var imgModel: EditText
     private lateinit var name: EditText
     private lateinit var user: EditText
     private lateinit var blocked: EditText
@@ -78,6 +80,10 @@ class SettingsActivity : Activity() {
 
         box.addView(label("Chave de API do Gemini (aistudio.google.com/apikey)"))
         key = field(Store.apiKey, "AIza...", true); box.addView(key)
+        box.addView(label("Chave Picovoice (console.picovoice.ai, grátis): ativa a escuta contínua por \"Jarvis\", sem bip"))
+        pico = field(Store.picoKey, "AccessKey", true); box.addView(pico)
+        box.addView(label("Modelo para criar imagens (pode exigir faturamento no AI Studio)"))
+        imgModel = field(Store.imageModel, "gemini-3.1-flash-image-preview"); box.addView(imgModel)
         box.addView(label("Modelos, em ordem de preferência (separados por vírgula)"))
         models = field(Store.modelsCsv, "gemini-2.5-flash,..."); box.addView(models)
         box.addView(label("Nome do assistente (palavra de ativação)"))
@@ -118,6 +124,8 @@ class SettingsActivity : Activity() {
     private fun save() {
         Store.apiKey = key.text.toString()
         Store.modelsCsv = models.text.toString()
+        Store.picoKey = pico.text.toString()
+        Store.imageModel = imgModel.text.toString()
         Store.assistant = name.text.toString()
         Store.userName = user.text.toString()
         Store.blockedCsv = blocked.text.toString()

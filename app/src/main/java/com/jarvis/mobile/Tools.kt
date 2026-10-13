@@ -21,6 +21,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.AlarmClock
 import android.provider.ContactsContract
+import android.provider.MediaStore
 import android.provider.Settings
 import android.telephony.SmsManager
 import android.view.KeyEvent
@@ -297,6 +298,9 @@ object Tools {
                     "previsao" to days
                 )
             },
+            Tool("create_image", "Cria uma imagem ORIGINAL (desenho, ilustração, arte, foto realista, logo) a partir de uma descrição e mostra na conversa. Use quando pedirem para criar, desenhar ou gerar uma imagem. Para achar fotos que já existem, use web_search.", listOf(P("prompt", "string", "Descrição detalhada da imagem: assunto, estilo, cores, clima.", true))) { a ->
+                createImage(a.getString("prompt"))
+            },
             Tool("web_search", "Pesquisa na web: notícias, preços, fatos atuais, qualquer coisa que mude com o tempo.", listOf(P("query", "string", "O que pesquisar.", true))) { a ->
                 val body = JSONObject()
                     .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text",
@@ -447,10 +451,17 @@ object Tools {
                     ?: return@Tool mapOf("error" to "WhatsApp não está instalado.")
                 val i = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$num?text=" + Uri.encode(a.getString("message")))).setPackage(pkg)
                 if (!start(i)) return@Tool mapOf("error" to "Não consegui abrir o WhatsApp.")
-                Thread.sleep(2500)
-                for (k in 0 until 12) {
-                    if (svc.clickWhatsAppSend(pkg)) { Thread.sleep(700); return@Tool mapOf("ok" to true, "obs" to "Toquei em Enviar na conversa com $num.") }
-                    Thread.sleep(700)
+                var sent = false
+                for (k in 0 until 40) {
+                    if (svc.clickWhatsAppSend(pkg)) { sent = true; break }
+                    Thread.sleep(250)
+                }
+                if (sent) {
+                    Thread.sleep(450)
+                    svc.press("back")
+                    Thread.sleep(400)
+                    if (svc.currentPackage() == pkg) svc.press("back")
+                    return@Tool mapOf("ok" to true, "obs" to "Mensagem enviada para $num e voltei à tela anterior.")
                 }
                 mapOf("error" to "Abri a conversa, mas não achei o botão Enviar. Use read_screen e tap.")
             },
@@ -543,6 +554,46 @@ object Tools {
                 mapOf("ok" to true, "alterado" to done)
             }
         )
+    }
+
+    private fun createImage(prompt: String): Any {
+        val body = JSONObject()
+            .put("contents", JSONArray().put(JSONObject().put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
+            .put("generationConfig", JSONObject().put("responseModalities", JSONArray().put("TEXT").put("IMAGE")))
+        val res = try {
+            Gemini.generate(body, listOf(Store.imageModel), 120000)
+        } catch (e: FatalApiError) {
+            return mapOf("error" to "A chave de API foi recusada: ${e.message}")
+        } catch (e: Exception) {
+            return mapOf("error" to "Não consegui gerar a imagem (${e.message}). Modelos de imagem podem exigir faturamento ativo no Google AI Studio.")
+        }
+        val parts = res.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
+        var b64: String? = null
+        if (parts != null) for (i in 0 until parts.length()) {
+            val p = parts.getJSONObject(i)
+            val inl = p.optJSONObject("inlineData") ?: p.optJSONObject("inline_data")
+            if (inl != null) { b64 = inl.getString("data"); break }
+        }
+        if (b64 == null) return mapOf("error" to "O modelo não devolveu imagem (pode ter recusado o pedido). Tente descrever de outro jeito.")
+        val bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+        val name = "jarvis_${System.currentTimeMillis()}.png"
+        val uri: Uri
+        if (Build.VERSION.SDK_INT >= 29) {
+            val v = android.content.ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Jarvis")
+            }
+            uri = ctx.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v)
+                ?: return mapOf("error" to "Não consegui salvar a imagem na galeria.")
+            ctx.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+        } else {
+            val f = java.io.File(ctx.getExternalFilesDir(Environment.DIRECTORY_PICTURES), name)
+            f.writeBytes(bytes)
+            uri = Uri.fromFile(f)
+        }
+        Jarvis.addMsg("img", uri.toString())
+        return mapOf("ok" to true, "mensagem" to "Imagem criada e já aparece na conversa. Foi salva em Pictures/Jarvis.")
     }
 
     fun run(name: String, args: JSONObject): JSONObject {

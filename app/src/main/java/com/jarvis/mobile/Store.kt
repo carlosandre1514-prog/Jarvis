@@ -25,6 +25,14 @@ object Store {
         get() = str("apiKey", "")
         set(v) = put("apiKey", v.trim())
 
+    var picoKey: String
+        get() = str("picoKey", "")
+        set(v) = put("picoKey", v.trim())
+
+    var imageModel: String
+        get() = str("imageModel", "gemini-3.1-flash-image-preview")
+        set(v) = put("imageModel", v.trim().ifEmpty { "gemini-3.1-flash-image-preview" })
+
     var modelsCsv: String
         get() = str("models", defaultModels)
         set(v) = put("models", v)

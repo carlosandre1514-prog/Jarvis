@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -29,38 +30,36 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    private fun roundBg(color: Int, radius: Int, stroke: Int = 0): GradientDrawable = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = dp(radius).toFloat()
-        if (stroke != 0) setStroke(dp(1), stroke)
-    }
+    private fun roundBg(color: Int, radius: Int, stroke: Int = 0): android.graphics.drawable.Drawable =
+        CutDrawable(color, stroke, dp(radius).toFloat() * 0.7f, dp(1).toFloat())
 
     private fun btn(label: String, onClick: () -> Unit): Button = Button(this).apply {
         text = label
         isAllCaps = false
-        setTextColor(Color.parseColor("#7FE9FF"))
-        background = roundBg(Color.parseColor("#0B1B2B"), 12, Color.parseColor("#1F5C73"))
+        setTextColor(Color.parseColor("#5CF0FF"))
+        background = roundBg(Color.parseColor("#09121E"), 12, Color.parseColor("#1D5468"))
         setOnClickListener { onClick() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#050912")
-        window.navigationBarColor = Color.parseColor("#050912")
+        window.statusBarColor = Color.parseColor("#04070D")
+        window.navigationBarColor = Color.parseColor("#04070D")
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#050912"))
+            setBackgroundColor(Color.parseColor("#04070D"))
             setPadding(dp(14), dp(34), dp(14), dp(12))
         }
 
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         top.addView(TextView(this).apply {
             text = "J.A.R.V.I.S"
-            setTextColor(Color.parseColor("#7FE9FF"))
-            textSize = 18f
+            setTextColor(Color.parseColor("#5CF0FF"))
+            textSize = 19f
             typeface = Typeface.MONOSPACE
-            letterSpacing = 0.2f
+            letterSpacing = 0.32f
+            setShadowLayer(14f, 0f, 0f, Color.parseColor("#885CF0FF"))
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         top.addView(btn("Ajustes") { startActivity(Intent(this, SettingsActivity::class.java)) })
         root.addView(top)
@@ -70,10 +69,10 @@ class MainActivity : Activity() {
 
         caption = TextView(this).apply {
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#6FD3EA"))
+            setTextColor(Color.parseColor("#5CF0FF"))
             textSize = 12f
             typeface = Typeface.MONOSPACE
-            letterSpacing = 0.18f
+            letterSpacing = 0.22f
         }
         root.addView(caption)
 
@@ -86,7 +85,7 @@ class MainActivity : Activity() {
             hint = "Digite um pedido…"
             setHintTextColor(Color.parseColor("#4F7080"))
             setTextColor(Color.WHITE)
-            background = roundBg(Color.parseColor("#0B1B2B"), 14, Color.parseColor("#1F5C73"))
+            background = roundBg(Color.parseColor("#09121E"), 14, Color.parseColor("#1D5468"))
             setPadding(dp(14), dp(10), dp(14), dp(10))
             imeOptions = EditorInfo.IME_ACTION_SEND
             maxLines = 4
@@ -111,7 +110,11 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         Jarvis.onMessage = { r, t -> bubble(r, t) }
-        Jarvis.onState = { s, cap -> orb.state = s; caption.text = cap; refreshListenBtn() }
+        Jarvis.onState = { s, cap ->
+            orb.state = s; caption.text = cap
+            caption.setTextColor(Color.parseColor(if (s == "thinking") "#FFB547" else "#5CF0FF"))
+            refreshListenBtn()
+        }
         orb.state = Jarvis.state
         refreshListenBtn()
     }
@@ -149,6 +152,23 @@ class MainActivity : Activity() {
     }
 
     private fun bubble(role: String, text: String) {
+        if (role == "img") {
+            val iv = android.widget.ImageView(this).apply {
+                adjustViewBounds = true
+                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                background = roundBg(Color.parseColor("#09121E"), 14, Color.parseColor("#1D5468"))
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+                try { setImageURI(Uri.parse(text)) } catch (_: Exception) {}
+                setOnClickListener {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(text), "image/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                    } catch (_: Exception) {}
+                }
+            }
+            msgs.addView(iv, LinearLayout.LayoutParams(dp(280), LinearLayout.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.START; topMargin = dp(6) })
+            scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+            return
+        }
         val me = role == "me"
         val tv = TextView(this).apply {
             this.text = text
@@ -156,8 +176,9 @@ class MainActivity : Activity() {
             setTextColor(if (role == "err") Color.parseColor("#FFB4A8") else Color.WHITE)
             setPadding(dp(12), dp(8), dp(12), dp(8))
             background = roundBg(
-                when (role) { "me" -> Color.parseColor("#12384A"); "err" -> Color.parseColor("#3A1712"); else -> Color.parseColor("#0B1B2B") },
-                14
+                when (role) { "me" -> Color.parseColor("#0F2B3A"); "err" -> Color.parseColor("#3A1712"); else -> Color.parseColor("#09121E") },
+                14,
+                when (role) { "me" -> Color.parseColor("#5CF0FF"); "err" -> Color.parseColor("#FF7A66"); else -> Color.parseColor("#FFB547") }
             )
         }
         val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {

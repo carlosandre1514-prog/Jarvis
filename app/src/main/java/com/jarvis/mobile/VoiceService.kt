@@ -19,6 +19,9 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import ai.picovoice.porcupine.Porcupine
+import ai.picovoice.porcupine.PorcupineManager
+import ai.picovoice.porcupine.PorcupineManagerCallback
 
 /** Serviço em primeiro plano que fica ouvindo (palavra de ativação "Jarvis") e responde por voz. */
 class VoiceService : Service() {
@@ -41,6 +44,44 @@ class VoiceService : Service() {
     private var rec: SpeechRecognizer? = null
     private var commandMode = false
     private var processing = false
+    private var pm: PorcupineManager? = null
+    private var pmFailed = false
+
+    private fun useHotword() =
+        Store.wakeRequired && Store.picoKey.isNotBlank() && Store.assistant.equals("Jarvis", true) && !pmFailed
+
+    private fun startHotword(): Boolean {
+        try {
+            if (pm == null) {
+                pm = PorcupineManager.Builder()
+                    .setAccessKey(Store.picoKey)
+                    .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
+                    .setSensitivity(0.7f)
+                    .build(applicationContext, PorcupineManagerCallback { _ -> main.post { onHotword() } })
+            }
+            pm?.start()
+            return true
+        } catch (e: Exception) {
+            pmFailed = true
+            try { pm?.delete() } catch (_: Exception) {}
+            pm = null
+            Jarvis.addMsg("err", "Escuta contínua falhou (${e.message}). Voltando ao modo antigo.")
+            return false
+        }
+    }
+
+    private fun stopHotword() {
+        try { pm?.stop() } catch (_: Exception) {}
+    }
+
+    private fun onHotword() {
+        if (!running || processing) return
+        stopHotword()
+        beep()
+        commandMode = true
+        Jarvis.setState("listening")
+        main.postDelayed({ startRecognizer() }, 350)
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -69,6 +110,9 @@ class VoiceService : Service() {
         main.removeCallbacksAndMessages(null)
         try { rec?.destroy() } catch (_: Exception) {}
         rec = null
+        stopHotword()
+        try { pm?.delete() } catch (_: Exception) {}
+        pm = null
         Jarvis.level = 0f
         Jarvis.setState("idle")
         super.onDestroy()
@@ -86,6 +130,15 @@ class VoiceService : Service() {
             stopSelf()
             return
         }
+        if (!commandMode && useHotword() && startHotword()) {
+            Jarvis.setState("wake")
+            return
+        }
+        startRecognizer()
+    }
+
+    private fun startRecognizer() {
+        if (!running || processing) return
         if (rec == null) {
             rec = SpeechRecognizer.createSpeechRecognizer(this)
             rec?.setRecognitionListener(listener)
@@ -118,7 +171,7 @@ class VoiceService : Service() {
 
     private fun handle(text: String) {
         val t = text.trim()
-        if (t.isEmpty()) { restart(200); return }
+        if (t.isEmpty()) { commandMode = false; restart(200); return }
         var cmd: String? = null
         if (commandMode) {
             cmd = t
