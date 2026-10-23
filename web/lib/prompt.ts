@@ -2,19 +2,16 @@ export type Category = "character" | "creature" | "object" | "weapon" | "vehicle
 export type Finish = "color" | "white";
 export type Style = "realistic" | "stylized" | "cartoon" | "lowpoly";
 export type Pose = "a-pose" | "t-pose";
-export type Topology = "quad" | "triangle";
-export type Provider = "meshy" | "tripo";
 
 export interface GenOptions {
-  provider: Provider;
   category: Category;
   description: string;
   colorNotes: string;
   finish: Finish;
   style: Style;
   pose: Pose;
+  /** triângulos alvo após a otimização no navegador */
   polycount: number;
-  topology: Topology;
 }
 
 export const CATEGORIES: { id: Category; label: string; hint: string }[] = [
@@ -35,50 +32,37 @@ export const STYLES: { id: Style; label: string }[] = [
 
 const STYLE_TEXT: Record<Style, string> = {
   realistic: "realistic, highly detailed, physically based materials",
-  stylized: "stylized hand-painted game art style, clean shapes",
+  stylized: "stylized hand-painted game art style, clean readable shapes",
   cartoon: "cartoon style, exaggerated proportions, smooth shapes",
   lowpoly: "low poly, faceted, simple clean geometry",
 };
 
 const CATEGORY_TEXT: Record<Category, (o: GenOptions) => string> = {
   character: (o) =>
-    `full body character, entire figure visible from head to toe, standing in ${o.pose === "t-pose" ? "T-pose" : "A-pose"}, ` +
-    "arms and legs separated from the body, feet on the ground, front facing, symmetrical",
-  creature: () => "full body creature, entire body visible including legs and tail, neutral standing pose",
-  object: () => "single isolated object, centered, complete",
-  weapon: () => "single isolated item, complete, centered, game prop",
-  vehicle: () => "complete vehicle, all wheels and parts visible, isolated",
-  building: () => "complete standalone building, isolated, solid base",
+    `full body character, entire figure visible from head to toe including both feet, standing in ${
+      o.pose === "t-pose" ? "T-pose with arms straight out horizontally" : "A-pose with arms angled down away from the body"
+    }, legs slightly apart, front view, symmetrical, neutral expression`,
+  creature: () => "full body creature, entire body visible including legs and tail, neutral standing pose, three-quarter view",
+  object: () => "single isolated object, complete, three-quarter view",
+  weapon: () => "single isolated item, complete, three-quarter view, game prop",
+  vehicle: () => "complete vehicle, all wheels and parts visible, three-quarter view",
+  building: () => "complete standalone building on a small base, three-quarter view",
 };
 
-/** Limite de caracteres de prompt das APIs (Meshy: 600). */
-const MAX_PROMPT = 600;
-
-/** Monta o prompt final: as especificações do usuário + modificadores técnicos para game assets. */
-export function buildPrompt(o: GenOptions): string {
-  const extras = [
+/**
+ * Prompt da imagem de referência (FLUX). O modelo 3D é reconstruído a partir dela,
+ * então pedimos um único objeto inteiro, centralizado, em fundo branco liso e luz uniforme.
+ */
+export function buildImagePrompt(o: GenOptions): string {
+  const desc = o.description.trim().replace(/\s+/g, " ");
+  const colors = o.finish === "color" && o.colorNotes.trim() ? `colors and materials: ${o.colorNotes.trim()}` : "";
+  return [
+    `3D game asset render of ${desc}`,
     CATEGORY_TEXT[o.category](o),
+    colors,
     STYLE_TEXT[o.style],
-    o.finish === "white" ? "untextured clean sculpt, plain white material" : "",
-    "game-ready 3D asset",
+    "single subject centered in frame with margin around it, plain pure white background, soft even studio lighting, no cast shadows, no text, no ground, no other objects",
   ]
     .filter(Boolean)
     .join(", ");
-  const room = MAX_PROMPT - extras.length - 2;
-  const desc = o.description.trim().replace(/\s+/g, " ").slice(0, Math.max(100, room));
-  return `${desc}, ${extras}`.slice(0, MAX_PROMPT);
-}
-
-/** O que não queremos no modelo (corpo cortado, várias figuras, chão etc.). */
-export function buildNegativePrompt(o: GenOptions): string {
-  const base = "low quality, blurry, multiple objects, ground plane, background, text, watermark";
-  return o.category === "character" || o.category === "creature"
-    ? `${base}, cropped body, missing legs, missing feet, bust only, half body, sitting`
-    : base;
-}
-
-/** Prompt de textura (cores/materiais) quando o modelo é colorido. */
-export function buildTexturePrompt(o: GenOptions): string {
-  const notes = o.colorNotes.trim();
-  return notes ? `${notes}, ${STYLE_TEXT[o.style]}`.slice(0, MAX_PROMPT) : "";
 }

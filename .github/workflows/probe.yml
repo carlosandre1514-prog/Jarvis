@@ -6,21 +6,29 @@ on:
 permissions:
   contents: read
 jobs:
-  probe:
+  e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        test: [hunyuan-all, hunyuan21-all]
+        mode: [white, color]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Teste ${{ matrix.test }}
+          node-version: 22
+      - name: Build do site
+        working-directory: web
+        run: |
+          npm ci
+          BASE_PATH=/Jarvis npx next build
+          mkdir -p ../site && cp -r out ../site/Jarvis
+      - name: Teste no navegador (${{ matrix.mode }})
         working-directory: .github/probe
         run: |
           npm init -y >/dev/null
-          npm i @gradio/client@2.7.1 >/dev/null 2>&1
-          timeout 600 node pipeline.mjs ${{ matrix.test }} || echo "saiu com erro/timeout"
+          npm i playwright@1.56.1 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          (node static.mjs ../../site 5050 &) ; sleep 2
+          timeout 900 node e2e.mjs ${{ matrix.mode }} || echo "saiu com erro"
