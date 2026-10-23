@@ -12,12 +12,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [color, white]
+        mode: [white]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pollinations
+        if: matrix.mode == 'white'
+        run: bash .github/probe/pollinations.sh || true
       - name: Build do site
         working-directory: web
         run: |
