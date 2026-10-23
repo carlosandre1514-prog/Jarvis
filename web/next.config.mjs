@@ -1,14 +1,13 @@
-const API_URL = process.env.API_URL || "http://localhost:4000";
+// Site 100% estático para o GitHub Pages.
+// BASE_PATH = "/<nome-do-repositório>" (o workflow preenche sozinho).
+const basePath = process.env.BASE_PATH || "";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Encaminha /api/* e /files/* para o backend Express.
-  async rewrites() {
-    return [
-      { source: "/api/:path*", destination: `${API_URL}/api/:path*` },
-      { source: "/files/:path*", destination: `${API_URL}/files/:path*` },
-    ];
-  },
+  output: "export",
+  basePath,
+  trailingSlash: true,
+  images: { unoptimized: true },
 };
 
 export default nextConfig;

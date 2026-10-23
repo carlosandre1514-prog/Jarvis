@@ -1,0 +1,8 @@
+# Opcional: só para quem preferir publicar pelo terminal (npx wrangler deploy).
+# Pelo painel do Cloudflare basta colar o worker.js (veja o README).
+name = "gerador-3d-proxy"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+[vars]
+ALLOWED_ORIGIN = "https://carlosandre1514-prog.github.io"

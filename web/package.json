@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3000"
+    "preview": "npx serve out"
   },
   "dependencies": {
     "@react-three/drei": "9.114.0",
