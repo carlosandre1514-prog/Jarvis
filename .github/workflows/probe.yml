@@ -9,7 +9,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Configuracao do Pages
@@ -24,7 +24,7 @@ jobs:
         run: |
           npm init -y >/dev/null
           npm i @gradio/client@1 >/dev/null 2>&1
-          timeout 60 node probe.mjs || true
-          for s in tencent/Hunyuan3D-2 tencent/Hunyuan3D-2.1 trellis-community/TRELLIS JeffreyXiang/TRELLIS black-forest-labs/FLUX.1-schnell; do
-            timeout 90 node probe.mjs "$s" || echo "TIMEOUT/ERRO em $s"
+          for t in hunyuan-shape hunyuan-all trellis; do
+            echo "################ $t"
+            timeout 420 node pipeline.mjs "$t" || echo "TIMEOUT em $t"
           done
