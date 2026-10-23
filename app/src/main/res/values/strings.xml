@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">JARVIS</string>
-    <string name="a11y_desc">Permite que o Jarvis leia a tela e toque, role e digite em outros aplicativos quando você pedir por voz ou texto.</string>
-</resources>
