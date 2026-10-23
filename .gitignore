@@ -1,0 +1,6 @@
+node_modules/
+.next/
+server/temp/
+.env
+*.blend1
+__pycache__/
