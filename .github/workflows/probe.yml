@@ -1,0 +1,28 @@
+name: Diagnostico (temporario)
+on:
+  push:
+    branches: [ccr-5f814887-v5p016]
+    paths: [".github/probe/**", ".github/workflows/probe.yml"]
+permissions:
+  contents: read
+  pages: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configuracao do Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api repos/${{ github.repository }}/pages || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Spaces do Hugging Face
+        working-directory: .github/probe
+        env:
+          SPACES: tencent/Hunyuan3D-2,tencent/Hunyuan3D-2.1,trellis-community/TRELLIS,JeffreyXiang/TRELLIS,black-forest-labs/FLUX.1-schnell
+        run: |
+          npm init -y >/dev/null
+          npm i @gradio/client@1 >/dev/null 2>&1
+          node probe.mjs
