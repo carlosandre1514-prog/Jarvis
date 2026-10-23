@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense, useEffect, useMemo } from "react";
-import { Canvas, useLoader } from "@react-three/fiber";
-import { Bounds, Center, ContactShadows, Environment, Grid, Lightformer, OrbitControls } from "@react-three/drei";
+import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { ContactShadows, Environment, Grid, Lightformer, OrbitControls } from "@react-three/drei";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import * as THREE from "three";
@@ -77,7 +77,43 @@ function Model({
     onStats?.(computeStats(root));
   }, [root, onStats]);
 
-  return <primitive object={root} />;
+  return (
+    <>
+      <primitive object={root} />
+      <FitCamera root={root} />
+    </>
+  );
+}
+
+/** Enquadra o modelo inteiro (de qualquer tamanho) na câmera e mira o centro dele. */
+function FitCamera({ root }: { root: THREE.Object3D }) {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3; update: () => void } | null;
+  const size = useThree((s) => s.size);
+
+  useEffect(() => {
+    const box = new THREE.Box3().setFromObject(root);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    const dims = box.getSize(new THREE.Vector3());
+    const radius = Math.max(dims.length() / 2, 0.01);
+    const vFov = THREE.MathUtils.degToRad(camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * (size.width / size.height));
+    const dist = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.05;
+    const dir = new THREE.Vector3(0.6, 0.35, 1).normalize();
+    camera.position.copy(center).addScaledVector(dir, dist);
+    camera.near = dist / 100;
+    camera.far = dist * 100;
+    camera.updateProjectionMatrix();
+    if (controls) {
+      controls.target.copy(center);
+      controls.update();
+    } else {
+      camera.lookAt(center);
+    }
+  }, [root, camera, controls, size.width, size.height]);
+
+  return null;
 }
 
 export default function ModelViewer({
@@ -109,14 +145,7 @@ export default function ModelViewer({
           <Lightformer intensity={1} position={[5, 1, 0]} rotation-y={-Math.PI / 2} scale={[10, 2, 1]} />
           <Lightformer intensity={0.5} position={[0, -5, 0]} rotation-x={-Math.PI / 2} scale={[10, 10, 1]} />
         </Environment>
-        {url && (
-          // key força recarregar ao trocar de modelo; Bounds enquadra qualquer escala.
-          <Bounds key={url + format} fit clip observe margin={1.25}>
-            <Center top>
-              <Model url={url} format={format} mode={mode} onStats={onStats} />
-            </Center>
-          </Bounds>
-        )}
+        {url && <Model key={url + format} url={url} format={format} mode={mode} onStats={onStats} />}
         <ContactShadows position={[0, 0, 0]} opacity={0.55} scale={12} blur={2.4} far={4} />
       </Suspense>
       {showGrid && (

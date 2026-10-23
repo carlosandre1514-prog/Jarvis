@@ -37,7 +37,7 @@ const DEFAULT_OPTIONS: GenOptions = {
   polycount: 20000,
 };
 
-type RefImage = { display: string; source: string | Blob };
+type RefImage = { display: string; source: Blob };
 type Busy = null | "image" | "model" | "export";
 
 function slug(text: string) {
@@ -179,8 +179,11 @@ export default function Home() {
     if (!opts.description.trim()) return setError("Descreva o que você quer criar.");
     const ctrl = start("image");
     try {
-      const url = await generateReferenceImage(opts, token, setProgress, ctrl.signal);
-      setRefImage({ display: url, source: url });
+      const blob = await generateReferenceImage(opts, token, setProgress, ctrl.signal);
+      setRefImage((old) => {
+        if (old) URL.revokeObjectURL(old.display);
+        return { display: URL.createObjectURL(blob), source: blob };
+      });
     } catch (e) {
       if ((e as Error).name !== "AbortError") setError(friendlyError(e));
     } finally {
@@ -193,7 +196,10 @@ export default function Home() {
     e.target.value = "";
     if (!file) return;
     if (file.name.match(/\.(glb|gltf|fbx)$/i)) return setError("Para ver um modelo 3D pronto, use o botão “Abrir .GLB” embaixo do visualizador.");
-    setRefImage({ display: URL.createObjectURL(file), source: file });
+    setRefImage((old) => {
+      if (old) URL.revokeObjectURL(old.display);
+      return { display: URL.createObjectURL(file), source: file };
+    });
     setError(null);
   }
 
@@ -207,10 +213,7 @@ export default function Home() {
       setProgress({ stage: "Otimizando a malha", detail: "Reduzindo polígonos e ajustando escala" });
       const { optimizeGlb } = await import("@/lib/optimize");
       const result = await optimizeGlb(raw, { targetTriangles: opts.polycount, white: opts.finish === "white", height });
-      const thumbnail =
-        typeof refImage.source === "string"
-          ? await fetch(refImage.source).then((r) => r.blob()).catch(() => null)
-          : refImage.source;
+      const thumbnail = refImage.source;
       const item: HistoryItem = {
         id: `${Date.now()}`,
         createdAt: Date.now(),
@@ -519,7 +522,9 @@ export default function Home() {
           className="relative flex min-h-[70vh] flex-1 scroll-mt-20 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-[#141417] lg:min-h-0"
         >
           <div className="relative flex-1">
-            <ModelViewer url={viewUrl} format="glb" mode={mode} autoRotate={autoRotate} showGrid={showGrid} onStats={setStats} />
+            <div className="absolute inset-0">
+              <ModelViewer url={viewUrl} format="glb" mode={mode} autoRotate={autoRotate} showGrid={showGrid} onStats={setStats} />
+            </div>
 
             {!viewUrl && !busy && (
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-zinc-500">

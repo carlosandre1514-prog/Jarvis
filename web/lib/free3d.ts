@@ -40,6 +40,15 @@ function files(data: unknown[]): FileData[] {
   return data.map(unwrap).filter((d): d is FileData => !!d && typeof d === "object" && typeof d.url === "string");
 }
 
+/** Junta o cancelamento do usuário com um tempo limite (funciona em navegadores antigos). */
+function withTimeout(signal: AbortSignal, ms: number): AbortSignal {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  signal.addEventListener("abort", () => ctrl.abort());
+  ctrl.signal.addEventListener("abort", () => clearTimeout(timer));
+  return ctrl.signal;
+}
+
 /** Mensagens de erro do Hugging Face em português e com o que fazer. */
 export function friendlyError(err: unknown): string {
   const msg = String((err as any)?.message ?? (err as any)?.title ?? err ?? "");
@@ -102,35 +111,50 @@ async function run(
   }
 }
 
-/** Passo 1: texto → imagem de referência (concept art do objeto isolado). */
+/**
+ * Passo 1: texto → imagem de referência (concept art do objeto isolado).
+ * Primeiro tenta o Pollinations.ai (FLUX grátis, não gasta a cota de GPU do Hugging Face,
+ * que fica toda para o 3D); se falhar, usa o FLUX.1-schnell no Hugging Face.
+ */
 export async function generateReferenceImage(
   o: GenOptions,
   hfToken: string,
   onProgress: (p: Progress) => void,
   signal: AbortSignal
-): Promise<string> {
+): Promise<Blob> {
   const label = "Desenhando a imagem de referência";
   onProgress({ stage: label });
-  const client = await connect(SPACES.image, asToken(hfToken), onProgress, label);
   const tall = o.category === "character" || o.category === "creature" || o.category === "building";
+  const width = tall ? 768 : 1024;
+  const height = 1024;
+  const prompt = buildImagePrompt(o);
+
+  try {
+    const seed = Math.floor(Math.random() * 1e9);
+    const url =
+      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+      `?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true&safe=true`;
+    const res = await fetch(url, { signal: withTimeout(signal, 90000) });
+    const blob = await res.blob();
+    if (res.ok && blob.type.startsWith("image/") && blob.size > 5000) return blob;
+    throw new Error(`Pollinations ${res.status}`);
+  } catch (err) {
+    if (signal.aborted) throw err;
+    onProgress({ stage: label, detail: "Usando o servidor reserva" });
+  }
+
+  const client = await connect(SPACES.image, asToken(hfToken), onProgress, label);
   const data = await run(
     client,
     "/infer",
-    {
-      prompt: buildImagePrompt(o),
-      seed: 0,
-      randomize_seed: true,
-      width: tall ? 768 : 1024,
-      height: 1024,
-      num_inference_steps: 4,
-    },
+    { prompt, seed: 0, randomize_seed: true, width, height, num_inference_steps: 4 },
     label,
     onProgress,
     signal
   );
   const [img] = files(data);
   if (!img) throw new Error("A IA não devolveu a imagem");
-  return img.url;
+  return new Blob([await download(img.url, signal)], { type: "image/webp" });
 }
 
 /** Passo 2: imagem → modelo 3D. Devolve a URL do .glb. */

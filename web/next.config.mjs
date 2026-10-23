@@ -8,6 +8,7 @@ const nextConfig = {
   basePath,
   trailingSlash: true,
   images: { unoptimized: true },
+  env: { NEXT_PUBLIC_BASE_PATH: basePath },
   webpack: (config, { webpack, isServer }) => {
     // @gltf-transform/core importa "node:fs" etc. para o modo Node; no navegador não são usados.
     config.plugins.push(
