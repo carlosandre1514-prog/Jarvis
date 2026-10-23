@@ -352,6 +352,16 @@ export default function Home() {
               />
             </Field>
 
+            {opts.finish === "color" && !token && (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+                O modo colorido usa mais GPU. Se aparecer aviso de cota, toque em{" "}
+                <button type="button" onClick={() => setSettingsOpen(true)} className="font-semibold underline">
+                  Cota
+                </button>{" "}
+                e cole um token grátis do Hugging Face (sem cartão).
+              </p>
+            )}
+
             {opts.finish === "color" && (
               <Field label="Cores e materiais" hint="opcional">
                 <input

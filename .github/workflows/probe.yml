@@ -6,32 +6,29 @@ on:
 permissions:
   contents: read
 jobs:
-  e2e:
+  live:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        mode: [white]
+    env:
+      SITE_URL: https://carlosandre1514-prog.github.io/Jarvis/
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Pollinations
-        if: matrix.mode == 'white'
-        run: bash .github/probe/pollinations.sh || true
-      - name: Build do site
-        working-directory: web
+      - name: Espera o GitHub Pages publicar esta versão
         run: |
-          npm ci
-          BASE_PATH=/Jarvis npx next build
-          mkdir -p ../site && cp -r out ../site/Jarvis
-      - name: Teste no navegador (${{ matrix.mode }})
+          want=$(grep -o '_next/static/chunks/app/page-[a-z0-9]*\.js' index.html | head -1)
+          echo "esperando $want"
+          for i in $(seq 1 60); do
+            if curl -s "$SITE_URL?nocache=$i" | grep -q "$want"; then echo "publicado"; exit 0; fi
+            sleep 10
+          done
+          echo "ainda não publicado"; exit 1
+      - name: Teste no site real (modo branco)
         working-directory: .github/probe
         run: |
           npm init -y >/dev/null
           npm i playwright@1.56.1 >/dev/null 2>&1
           npx playwright install --with-deps chromium >/dev/null 2>&1
-          (node static.mjs ../../site 5050 &) ; sleep 2
-          timeout 900 node e2e.mjs ${{ matrix.mode }} || echo "saiu com erro"
+          timeout 900 node e2e.mjs white || echo "saiu com erro"

@@ -14,7 +14,7 @@ const errs = [];
 page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 page.on("console", (m) => m.type() === "error" && errs.push("console: " + m.text().slice(0, 300)));
 try {
-  await page.goto("http://localhost:5050/Jarvis/");
+  await page.goto(process.env.SITE_URL || "http://localhost:5050/Jarvis/");
   await page.fill("textarea", "viking warrior, adult man, braided red beard, leather armor with iron plates, fur cape, leather boots, axe on his back");
   if (mode === "white") await page.click("button:has-text('Só o modelo (branco)')");
   else await page.fill("input[placeholder*='couro']", "brown leather, silver iron, red cape");
