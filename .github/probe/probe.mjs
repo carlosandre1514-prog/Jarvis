@@ -1,13 +1,14 @@
 import { Client } from "@gradio/client";
 const api = (p) => fetch("https://huggingface.co/api/" + p).then((r) => r.json());
 
-console.log("=== Spaces 3D populares ===");
-for (const q of ["3d", "trellis", "hunyuan3d", "text-to-3d", "image-to-3d"]) {
+const onlyList = process.argv.length <= 2;
+if (onlyList) console.log("=== Spaces 3D populares ===");
+if (onlyList) for (const q of ["3d", "trellis", "hunyuan3d", "text-to-3d", "image-to-3d"]) {
   const list = await api(`spaces?search=${q}&sort=likes&direction=-1&limit=15&full=true`);
   for (const s of list) console.log(q.padEnd(12), String(s.likes).padStart(5), s.id, s.runtime?.stage ?? "", s.runtime?.hardware?.current ?? "", s.sdk);
 }
 
-const targets = (process.env.SPACES || "").split(",").filter(Boolean);
+const targets = process.argv.slice(2);
 for (const id of targets) {
   console.log(`\n=== ${id} ===`);
   try {
@@ -24,3 +25,4 @@ for (const id of targets) {
     console.log("ERRO:", e.message);
   }
 }
+process.exit(0); // o cliente Gradio mantém conexões abertas

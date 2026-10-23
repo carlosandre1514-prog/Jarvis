@@ -9,6 +9,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Configuracao do Pages
@@ -20,9 +21,10 @@ jobs:
           node-version: 20
       - name: Spaces do Hugging Face
         working-directory: .github/probe
-        env:
-          SPACES: tencent/Hunyuan3D-2,tencent/Hunyuan3D-2.1,trellis-community/TRELLIS,JeffreyXiang/TRELLIS,black-forest-labs/FLUX.1-schnell
         run: |
           npm init -y >/dev/null
           npm i @gradio/client@1 >/dev/null 2>&1
-          node probe.mjs
+          timeout 60 node probe.mjs || true
+          for s in tencent/Hunyuan3D-2 tencent/Hunyuan3D-2.1 trellis-community/TRELLIS JeffreyXiang/TRELLIS black-forest-labs/FLUX.1-schnell; do
+            timeout 90 node probe.mjs "$s" || echo "TIMEOUT/ERRO em $s"
+          done
