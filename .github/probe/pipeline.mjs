@@ -1,56 +1,74 @@
-// Teste real do fluxo grátis: texto -> imagem (FLUX) -> 3D (Hunyuan3D-2 / TRELLIS)
+// Teste real: imagem fixa -> 3D (Hunyuan3D-2 colorido / TRELLIS), CORS e conteúdo do GLB
 import { Client, handle_file } from "@gradio/client";
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s]`, ...a);
 const which = process.argv[2];
-const prompt =
-  "full body 3D character, viking warrior with red braided beard and leather armor, standing in A-pose, " +
-  "entire figure visible from head to toe, centered, plain white background, soft studio lighting, 3D render";
+const IMG = "https://raw.githubusercontent.com/carlosandre1514-prog/Jarvis/ccr-5f814887-v5p016/.github/probe/test.png";
+const ORIGIN = "https://carlosandre1514-prog.github.io";
+const unwrap = (d) => (d && d.value && d.__type__ ? d.value : d);
 
-async function head(url) {
-  const r = await fetch(url, { method: "HEAD" });
-  return `${r.status} ${r.headers.get("content-type")} ${r.headers.get("content-length")} cors=${r.headers.get("access-control-allow-origin")}`;
+async function inspect(url) {
+  const r = await fetch(url, { headers: { Origin: ORIGIN } });
+  const buf = new Uint8Array(await r.arrayBuffer());
+  let info = `${r.status} bytes=${buf.length} acao=${r.headers.get("access-control-allow-origin")}`;
+  if (buf[0] === 0x67 && buf[1] === 0x6c) {
+    const len = new DataView(buf.buffer).getUint32(12, true);
+    const json = JSON.parse(new TextDecoder().decode(buf.slice(20, 20 + len)));
+    info += ` meshes=${json.meshes?.length} materials=${json.materials?.length} images=${json.images?.length} textures=${json.textures?.length}`;
+    info += ` mat0=${JSON.stringify(json.materials?.[0]).slice(0, 300)}`;
+    info += ` attrs=${JSON.stringify(json.meshes?.[0]?.primitives?.[0]?.attributes)}`;
+  }
+  return info;
+}
+
+async function run(space, ep, args) {
+  const c = await Client.connect(space);
+  const sub = c.submit(ep, args);
+  for await (const m of sub) {
+    if (m.type === "status") log("status", m.stage, m.message || "", m.queue ? `pos ${m.position}` : "");
+    if (m.type === "data") {
+      const data = m.data.map(unwrap);
+      log("dados:", JSON.stringify(data).slice(0, 1200));
+      for (const d of data) if (d && d.url) log("arquivo:", d.orig_name, await inspect(d.url));
+      return data;
+    }
+  }
 }
 
 try {
-  log("FLUX conectando");
-  const flux = await Client.connect("black-forest-labs/FLUX.1-schnell");
-  const img = await flux.predict("/infer", { prompt, seed: 0, randomize_seed: true, width: 768, height: 1024, num_inference_steps: 4 });
-  const image = img.data[0];
-  log("FLUX ok:", JSON.stringify(image).slice(0, 300));
-  log("imagem:", await head(image.url));
-
-  if (which === "hunyuan-shape" || which === "hunyuan-all") {
-    const hy = await Client.connect("tencent/Hunyuan3D-2");
-    const ep = which === "hunyuan-shape" ? "/shape_generation" : "/generation_all";
-    const sub = hy.submit(ep, {
-      caption: "", image: handle_file(image.url), mv_image_front: null, mv_image_back: null, mv_image_left: null, mv_image_right: null,
+  if (which === "flux-cors") {
+    const flux = await Client.connect("black-forest-labs/FLUX.1-schnell");
+    const r = await flux.predict("/infer", { prompt: "red apple, white background", seed: 1, randomize_seed: false, width: 512, height: 512, num_inference_steps: 4 });
+    log("flux:", await inspect(unwrap(r.data[0]).url));
+  }
+  if (which === "hunyuan-all") {
+    await run("tencent/Hunyuan3D-2", "/generation_all", {
+      caption: "", image: handle_file(IMG), mv_image_front: null, mv_image_back: null, mv_image_left: null, mv_image_right: null,
       steps: 30, guidance_scale: 5, seed: 1234, octree_resolution: 256, check_box_rembg: true, num_chunks: 8000, randomize_seed: true,
     });
-    for await (const m of sub) {
-      if (m.type === "status") log("status", m.stage, m.queue ? `fila ${m.position}/${m.queue_size} eta ${m.eta}` : "", m.message || "", m.progress_data ? JSON.stringify(m.progress_data) : "");
-      if (m.type === "data") {
-        log("dados:", JSON.stringify(m.data).slice(0, 1500));
-        for (const d of m.data) if (d && d.url) log("arquivo:", d.url, await head(d.url));
-        break;
-      }
-    }
   }
-
+  if (which === "hunyuan21-all") {
+    await run("tencent/Hunyuan3D-2.1", "/generation_all", {
+      image: handle_file(IMG), mv_image_front: null, mv_image_back: null, mv_image_left: null, mv_image_right: null,
+      steps: 30, guidance_scale: 5, seed: 1234, octree_resolution: 256, check_box_rembg: true, num_chunks: 8000, randomize_seed: true,
+    });
+  }
   if (which === "trellis") {
-    const tr = await Client.connect("trellis-community/TRELLIS");
-    await tr.predict("/start_session", {}).catch((e) => log("start_session:", e.message));
-    const pre = await tr.predict("/preprocess_image", { image: handle_file(image.url) });
-    log("pre:", JSON.stringify(pre.data).slice(0, 300));
-    const sub = tr.submit("/generate_and_extract_glb", {
-      image: handle_file(pre.data[0].url), multiimages: [], seed: 0, ss_guidance_strength: 7.5, ss_sampling_steps: 12,
+    const c = await Client.connect("trellis-community/TRELLIS");
+    try { await c.predict("/start_session", {}); log("sessao ok"); } catch (e) { log("start_session:", e?.message); }
+    const pre = await c.predict("/preprocess_image", { image: handle_file(IMG) });
+    const img = unwrap(pre.data[0]);
+    log("pre:", JSON.stringify(img).slice(0, 200));
+    const sub = c.submit("/generate_and_extract_glb", {
+      image: handle_file(img.url), multiimages: [], seed: 0, ss_guidance_strength: 7.5, ss_sampling_steps: 12,
       slat_guidance_strength: 3, slat_sampling_steps: 12, multiimage_algo: "stochastic", mesh_simplify: 0.95, texture_size: 1024,
     });
     for await (const m of sub) {
       if (m.type === "status") log("status", m.stage, m.message || "");
       if (m.type === "data") {
-        log("dados:", JSON.stringify(m.data).slice(0, 1500));
-        for (const d of m.data) if (d && d.url) log("arquivo:", d.url, await head(d.url));
+        const data = m.data.map(unwrap);
+        log("dados:", JSON.stringify(data).slice(0, 1200));
+        for (const d of data) if (d && d.url) log("arquivo:", d.orig_name, await inspect(d.url));
         break;
       }
     }

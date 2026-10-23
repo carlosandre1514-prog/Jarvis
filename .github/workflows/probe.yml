@@ -5,26 +5,22 @@ on:
     paths: [".github/probe/**", ".github/workflows/probe.yml"]
 permissions:
   contents: read
-  pages: read
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [flux-cors, hunyuan-all, hunyuan21-all, trellis]
     steps:
       - uses: actions/checkout@v4
-      - name: Configuracao do Pages
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api repos/${{ github.repository }}/pages || true
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Spaces do Hugging Face
+      - name: Teste ${{ matrix.test }}
         working-directory: .github/probe
         run: |
           npm init -y >/dev/null
-          npm i @gradio/client@1 >/dev/null 2>&1
-          for t in hunyuan-shape hunyuan-all trellis; do
-            echo "################ $t"
-            timeout 420 node pipeline.mjs "$t" || echo "TIMEOUT em $t"
-          done
+          npm i @gradio/client@2.7.1 >/dev/null 2>&1
+          timeout 600 node pipeline.mjs ${{ matrix.test }} || echo "saiu com erro/timeout"
