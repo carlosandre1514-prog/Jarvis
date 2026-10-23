@@ -18,7 +18,8 @@ try {
   await page.fill("textarea", "viking warrior, adult man, braided red beard, leather armor with iron plates, fur cape, leather boots, axe on his back");
   if (mode === "white") await page.click("button:has-text('Só o modelo (branco)')");
   else await page.fill("input[placeholder*='couro']", "brown leather, silver iron, red cape");
-  await page.click("button:has-text('Gerar imagem de referência')");
+  if (mode === "upload") await page.setInputFiles("input[accept='image/*']", "test.png");
+  else await page.click("button:has-text('Gerar imagem de referência')");
   await page.waitForFunction(() => !!document.querySelector("img[alt='Imagem de referência']") || document.body.innerText.includes("cota"), null, { timeout: 180000 });
   log("imagem pronta");
   await page.waitForTimeout(1500);

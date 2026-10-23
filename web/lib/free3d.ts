@@ -63,6 +63,8 @@ async function connect(space: string, token: Token, onProgress: (p: Progress) =>
   return Client.connect(space, {
     token,
     record_history: false,
+    // sem "status" o cliente engole erros (ex.: cota esgotada) e só encerra o fluxo
+    events: ["data", "status"],
     status_callback: (s) => {
       if (s.status === "sleeping" || s.status === "building") onProgress({ stage: label, detail: "Ligando o servidor grátis (pode levar 1 min)" });
     },
