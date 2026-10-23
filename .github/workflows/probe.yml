@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test: [flux-cors, hunyuan-all, hunyuan21-all, trellis]
+        test: [hunyuan-all, hunyuan21-all]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

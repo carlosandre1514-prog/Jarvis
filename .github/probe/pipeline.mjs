@@ -22,10 +22,10 @@ async function inspect(url) {
 }
 
 async function run(space, ep, args) {
-  const c = await Client.connect(space);
+  const c = await Client.connect(space, { events: ["data", "status", "log"] });
   const sub = c.submit(ep, args);
   for await (const m of sub) {
-    if (m.type === "status") log("status", m.stage, m.message || "", m.queue ? `pos ${m.position}` : "");
+    log("msg", m.type, JSON.stringify(m).slice(0, 400));
     if (m.type === "data") {
       const data = m.data.map(unwrap);
       log("dados:", JSON.stringify(data).slice(0, 1200));
@@ -33,6 +33,7 @@ async function run(space, ep, args) {
       return data;
     }
   }
+  log("iterador terminou sem dados");
 }
 
 try {
