@@ -22,3 +22,6 @@ local.properties
 .env
 .env.*
 !.env.example
+
+# Dados do Nexus
+dados/

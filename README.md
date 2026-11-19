@@ -1,3 +1,10 @@
-# Jarvis
+# Jarvis — N.E.X.U.S.
 
-Repositório reiniciado. Comece a adicionar o projeto aqui.
+IA pessoal: servidor Node.js (`server/`) + app PWA (`web/`).
+
+Instruções de instalação: veja [LEIA-ME.md](LEIA-ME.md).
+
+```bash
+npm start   # inicia o servidor
+npm test    # roda os testes
+```

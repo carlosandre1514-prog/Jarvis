@@ -1,0 +1,12 @@
+{
+  "name": "nexus-ia",
+  "version": "1.0.0",
+  "description": "N.E.X.U.S. — IA pessoal sem limite de uso (servidor + app web)",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning test/run.js"
+  }
+}
