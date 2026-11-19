@@ -1,0 +1,24 @@
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editores
+.idea/
+.vscode/
+*.swp
+
+# Dependências e builds
+node_modules/
+build/
+dist/
+out/
+.next/
+.gradle/
+*.apk
+*.aab
+local.properties
+
+# Ambiente
+.env
+.env.*
+!.env.example
